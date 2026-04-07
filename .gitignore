@@ -1,0 +1,6 @@
+venv/
+.env/
+env/
+.venv/
+models/model_hugging_face.pt
+models 

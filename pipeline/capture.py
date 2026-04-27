@@ -8,11 +8,13 @@ class CaptureThread(threading.Thread):
         self.stop_event = threading.Event()
     
     def run(self):
+        print(f"Starting video capture from {self.source}")
         cap = cv2.VideoCapture(self.source)
         while not self.stop_event.is_set():
             ret, frame = cap.read()
             if not ret:
-                break
+                print("Không thể đọc video hoặc đã hết video")
+                continue
             if self.frame_queue.full():
                 try:
                     self.frame_queue.get_nowait()

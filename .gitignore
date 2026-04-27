@@ -4,3 +4,6 @@ env/
 .venv/
 models/model_hugging_face.pt
 models 
+__pycache__/
+*.pyc
+*.pyo

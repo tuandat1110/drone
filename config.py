@@ -1,3 +1,8 @@
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+
 MODEL_PATH   = "models/best_7.pt"
 #SOURCE       = "video/drone2.mp4"   # hoặc 0 cho webcam
 SOURCE = 0
@@ -9,5 +14,7 @@ AREA_THRESH  = 1500
 IMGSZ        = 960
 DRONE_CLS    = 0
 
-SIGNALING_URL = 'http://localhost:3001'
+#SIGNALING_URL = 'http://localhost:3001'
 QUEUE_SIZE   = 1      # nhỏ = latency thấp, không tích tụ frame cũ
+BACKEND_URL  = os.getenv('BACKEND_URL', 'http://localhost:3001')
+DEVICE_KEY   = os.getenv('DEVICE_KEY', '') 

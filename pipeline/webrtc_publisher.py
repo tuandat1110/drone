@@ -1,8 +1,10 @@
+# pipeline/webrtc_publisher.py
 import asyncio
 import threading
 import queue
 import cv2
 import socketio
+import requests
 from aiortc import RTCPeerConnection, RTCConfiguration, RTCIceCandidate, RTCSessionDescription, VideoStreamTrack
 from av import VideoFrame
 
@@ -35,12 +37,29 @@ class AnnotatedFrameTrack(VideoStreamTrack):
 
 
 class WebRTCPublisherThread(threading.Thread):
-    def __init__(self, annotated_q: queue.Queue, signaling_url: str):
+    def __init__(self, annotated_q: queue.Queue, backend_url: str, device_key: str):
         super().__init__(daemon=True)
-        self.annotated_q   = annotated_q
-        self.signaling_url = signaling_url
-        self._stop_event   = threading.Event()
-        self.loop          = None
+        self.annotated_q  = annotated_q
+        self.backend_url  = backend_url   # 'http://localhost:3000'
+        self.device_key   = device_key    # đọc từ .env
+        self._stop_event  = threading.Event()
+        self.loop         = None
+
+    def _get_session_token(self) -> str:
+        """Bước 1: đổi device_key lấy session_token"""
+        res = requests.post(
+            f'{self.backend_url}/devices/session',
+            json={'device_key': self.device_key},
+            timeout=10,
+        )
+        res.raise_for_status()  
+        body = res.json()
+        token = body.get("data", {}).get("session_token")
+        if not token:
+            raise ValueError("Backend không trả về session_token")
+
+        print(f'[WebRTC] Session token: {token[:8]}...')
+        return token
 
     def run(self):
         self.loop = asyncio.new_event_loop()
@@ -56,12 +75,18 @@ class WebRTCPublisherThread(threading.Thread):
             self.loop.call_soon_threadsafe(self.loop.stop)
 
     async def _main(self):
+        # Bước 1: lấy session token trước khi connect WebSocket
+        try:
+            session_token = self._get_session_token()
+        except Exception as e:
+            print(f'[WebRTC] Không thể lấy session token: {e}')
+            return
+
         NS = '/signaling'
         sio = socketio.AsyncClient(reconnection=True, reconnection_attempts=10)
         peer_connections: dict[str, RTCPeerConnection] = {}
 
         async def make_pc(viewer_id: str) -> RTCPeerConnection:
-            # ✅ Fix 1 — dùng RTCConfiguration thay vì dict
             pc = RTCPeerConnection(RTCConfiguration(iceServers=[]))
             peer_connections[viewer_id] = pc
             pc.addTrack(AnnotatedFrameTrack(self.annotated_q))
@@ -90,8 +115,9 @@ class WebRTCPublisherThread(threading.Thread):
 
         @sio.on('connect', namespace=NS)
         async def on_connect():
-            print('[WebRTC] Signaling server connected')
-            await sio.emit('register-publisher', namespace=NS)
+            # Bước 2: sau khi kết nối WS, KHÔNG emit register-publisher nữa
+            # handleConnection bên NestJS đã tự xử lý qua session_token
+            print('[WebRTC] Signaling connected — authenticated as device')
 
         @sio.on('connect_error', namespace=NS)
         async def on_connect_error(data):
@@ -99,7 +125,7 @@ class WebRTCPublisherThread(threading.Thread):
 
         @sio.on('disconnect', namespace=NS)
         async def on_disconnect():
-            print('[WebRTC] Signaling server disconnected')
+            print('[WebRTC] Signaling disconnected')
 
         @sio.on('offer', namespace=NS)
         async def on_offer(data):
@@ -131,7 +157,6 @@ class WebRTCPublisherThread(threading.Thread):
             c = data['candidate']
             parts = c['candidate'].split()
             try:
-                # ✅ Fix 2 — dùng 'ip' thay vì 'host'
                 candidate = RTCIceCandidate(
                     foundation=parts[0].replace('candidate:', ''),
                     component=int(parts[1]),
@@ -147,10 +172,15 @@ class WebRTCPublisherThread(threading.Thread):
             except Exception as e:
                 print(f'[WebRTC] ICE parse error: {e}')
 
+        # Bước 2: kết nối WS với session_token trong auth
         await sio.connect(
-            self.signaling_url,
+            self.backend_url,
             namespaces=[NS],
             socketio_path='/socket.io',
+            auth={
+                'token': session_token,
+                'type': 'device',       # NestJS dùng type này để phân nhánh
+            },
         )
 
         while not self._stop_event.is_set():

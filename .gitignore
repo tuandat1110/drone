@@ -1,9 +1,19 @@
+# Virtual environments
 venv/
 .env/
 env/
 .venv/
-models/model_hugging_face.pt
-models 
+
+# Secret env files
+.env
+.env.*
+!.env.example
+
+# Python cache
 __pycache__/
 *.pyc
 *.pyo
+
+# Model files
+models/
+models/model_hugging_face.pt

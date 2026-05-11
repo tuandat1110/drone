@@ -126,7 +126,7 @@ class WebRTCPublisherThread(threading.Thread):
         @sio.on('disconnect', namespace=NS)
         async def on_disconnect():
             print('[WebRTC] Signaling disconnected')
-
+    
         @sio.on('offer', namespace=NS)
         async def on_offer(data):
             viewer_id = data['viewerId']
@@ -172,14 +172,13 @@ class WebRTCPublisherThread(threading.Thread):
             except Exception as e:
                 print(f'[WebRTC] ICE parse error: {e}')
 
-        # Bước 2: kết nối WS với session_token trong auth
         await sio.connect(
             self.backend_url,
             namespaces=[NS],
             socketio_path='/socket.io',
             auth={
                 'token': session_token,
-                'type': 'device',       # NestJS dùng type này để phân nhánh
+                'type': 'device',       
             },
         )
 

@@ -22,4 +22,4 @@ class DisplayProcessor: # Đổi tên thành Processor cho đúng bản chất
         # if dets:
         #     self.alert.trigger(frame, dets)
         
-        return annotated
+        return annotated, fps

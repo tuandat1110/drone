@@ -18,7 +18,7 @@ class InferenceThread(threading.Thread):
             
             h_orig, w_orig, _ = frame.shape
             scale = cfg.IMGSZ / max(h_orig, w_orig)
-            
+
             # 1. Resize để inference
             resized = cv2.resize(frame, (int(w_orig * scale), int(h_orig * scale)))
 
